@@ -2,6 +2,7 @@
 
 pub mod bit_pack;
 pub mod protocols;
+pub mod recv_buffer;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Coil {
