@@ -156,8 +156,8 @@ impl ModbusProtocol for TcpModbus {
 mod test {
 
     use super::*;
-    use crate::ModbusError::*;
     use crate::test_data::*;
+    use crate::ModbusError::*;
 
     #[test]
     fn tcp_adu_length() {
@@ -190,12 +190,15 @@ mod test {
             if i < MBAP_LENGTH {
                 assert_eq!(header, Err(NotEnoughData));
             } else {
-                assert_eq!(header, Ok(TcpModbusHeader {
-                    length: ADU1_LENGTH,
-                    protocol_id: ADU1_PROTO_ID,
-                    transaction_id: ADU1_TRANS_ID,
-                    unit_id: ADU1_UNIT_ID,
-                }));
+                assert_eq!(
+                    header,
+                    Ok(TcpModbusHeader {
+                        length: ADU1_LENGTH,
+                        protocol_id: ADU1_PROTO_ID,
+                        transaction_id: ADU1_TRANS_ID,
+                        unit_id: ADU1_UNIT_ID,
+                    })
+                );
             }
         }
 
@@ -205,12 +208,15 @@ mod test {
             if i < MBAP_LENGTH {
                 assert_eq!(header, Err(NotEnoughData));
             } else {
-                assert_eq!(header, Ok(TcpModbusHeader {
-                    length: ADU2_LENGTH,
-                    protocol_id: ADU2_PROTO_ID,
-                    transaction_id: ADU2_TRANS_ID,
-                    unit_id: ADU2_UNIT_ID,
-                }));
+                assert_eq!(
+                    header,
+                    Ok(TcpModbusHeader {
+                        length: ADU2_LENGTH,
+                        protocol_id: ADU2_PROTO_ID,
+                        transaction_id: ADU2_TRANS_ID,
+                        unit_id: ADU2_UNIT_ID,
+                    })
+                );
             }
         }
     }

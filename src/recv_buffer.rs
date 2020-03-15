@@ -1,3 +1,7 @@
+//! Tools for converting a byte stream into a sequence of MODBUS messages
+//!
+//! See the `RecvBuffer` struct for details.
+
 use crate::protocols::ModbusProtocol;
 use crate::ModbusError;
 
@@ -16,6 +20,12 @@ const BUFFER_LEN: usize = const_max(
     crate::protocols::ModbusRtu::ADU_MAX_LENGTH,
 );
 
+/// Converts a raw byte stream into a sequence of MODBUS packets
+///
+/// The critical method is `process`. By calling it with new data, will get broken-out MODBUS
+/// packets. Each packet corresponds to an application data unit (ADU), and contains some header
+/// data (dependent on the underlying transport protocol) and a protocol data unit (PDU) that does
+/// not depend on the underlying transport protocol.
 pub struct RecvBuffer<P: ModbusProtocol> {
     // This is a critical invariant:
     // If the buffer ever contains a complete APU, contains_complete must be true and size_used
@@ -138,6 +148,10 @@ impl<P: ModbusProtocol> RecvBuffer<P> {
     }
 }
 
+/// A representation of a single MODBUS ADU
+///
+/// Consists of a protocol-dependent header, as well as a protocol data unit that is the same
+/// regardless of the underlying transport protocol.
 pub struct Packet<'p, P: ModbusProtocol> {
     pub pdu: &'p [u8],
     pub header: P::Header,
