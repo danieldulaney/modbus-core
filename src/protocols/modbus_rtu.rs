@@ -1,9 +1,12 @@
-
 use super::ModbusProtocol;
 use crate::ModbusError;
 
+/// MODBUS RTU protocol implementation
+///
+/// This currently consists of unimplemented stubs, and will panic if used.
 pub struct ModbusRtu;
 
+/// MODBUS RTU header data
 #[derive(Debug, Clone)]
 pub struct ModbusRtuHeader {
     pub address: u8,

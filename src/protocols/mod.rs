@@ -38,5 +38,5 @@ pub trait ModbusProtocol {
     fn pdu_body(data: &[u8]) -> Result<&[u8], ModbusError>;
 }
 
-pub use modbus_rtu::ModbusRtu;
-pub use tcp_modbus::TcpModbus;
+pub use modbus_rtu::{ModbusRtu, ModbusRtuHeader};
+pub use tcp_modbus::{TcpModbus, TcpModbusHeader};
