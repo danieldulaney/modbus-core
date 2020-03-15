@@ -80,7 +80,7 @@ const MBAP_LENGTH: usize = 7;
 const EXCLUDED_LENGTH: usize = 6;
 
 /// TCP MODBUS header data
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct TcpModbusHeader {
     pub transaction_id: u16,
     pub protocol_id: u16,
@@ -114,7 +114,7 @@ impl ModbusProtocol for TcpModbus {
     fn adu_length(data: &[u8]) -> Result<usize, ModbusError> {
         match Self::length(data) {
             None => Err(ModbusError::NotEnoughData),
-            Some(v) => Ok(v as usize + MBAP_LENGTH),
+            Some(v) => Ok(v as usize + EXCLUDED_LENGTH),
         }
     }
 
@@ -129,14 +129,14 @@ impl ModbusProtocol for TcpModbus {
         })
     }
 
-    /// TCP MODBUS doesn't have checksums, so this just confirms that there's
-    /// enough data to make up a whole ADU
+    /// TCP MODBUS doesn't have application-layer checksums, so this just confirms that there's
+    /// at least enough data to make up a whole ADU
     fn adu_check(data: &[u8]) -> Result<(), ModbusError> {
         use ModbusError::NotEnoughData;
 
         let length = Self::adu_length(data)?;
 
-        if data.len() > length {
+        if data.len() >= length {
             Ok(())
         } else {
             Err(NotEnoughData)
@@ -149,5 +149,115 @@ impl ModbusProtocol for TcpModbus {
         // We just checked that the length is correct in adu_check, so this
         // won't panic
         Ok(&data[MBAP_LENGTH..])
+    }
+}
+
+#[cfg(test)]
+mod test {
+
+    use super::*;
+    use crate::ModbusError::*;
+    use crate::test_data::*;
+
+    #[test]
+    fn tcp_adu_length() {
+        for i in 0..=ADU1_TCP.len() {
+            let len = TcpModbus::adu_length(&ADU1_TCP[..i]);
+
+            if i < EXCLUDED_LENGTH {
+                assert_eq!(len, Err(NotEnoughData));
+            } else {
+                assert_eq!(len, Ok(ADU1_ADU_LENGTH));
+            }
+        }
+
+        for i in 0..=ADU2_TCP.len() {
+            let len = TcpModbus::adu_length(&ADU2_TCP[..i]);
+
+            if i < EXCLUDED_LENGTH {
+                assert_eq!(len, Err(NotEnoughData));
+            } else {
+                assert_eq!(len, Ok(ADU2_ADU_LENGTH));
+            }
+        }
+    }
+
+    #[test]
+    fn tcp_adu_header() {
+        for i in 0..=ADU1_TCP.len() {
+            let header = TcpModbus::adu_header(&ADU1_TCP[..i]);
+
+            if i < MBAP_LENGTH {
+                assert_eq!(header, Err(NotEnoughData));
+            } else {
+                assert_eq!(header, Ok(TcpModbusHeader {
+                    length: ADU1_LENGTH,
+                    protocol_id: ADU1_PROTO_ID,
+                    transaction_id: ADU1_TRANS_ID,
+                    unit_id: ADU1_UNIT_ID,
+                }));
+            }
+        }
+
+        for i in 0..=ADU2_TCP.len() {
+            let header = TcpModbus::adu_header(&ADU2_TCP[..i]);
+
+            if i < MBAP_LENGTH {
+                assert_eq!(header, Err(NotEnoughData));
+            } else {
+                assert_eq!(header, Ok(TcpModbusHeader {
+                    length: ADU2_LENGTH,
+                    protocol_id: ADU2_PROTO_ID,
+                    transaction_id: ADU2_TRANS_ID,
+                    unit_id: ADU2_UNIT_ID,
+                }));
+            }
+        }
+    }
+
+    #[test]
+    fn tcp_adu_check() {
+        for i in 0..=ADU1_TCP.len() {
+            let result = TcpModbus::adu_check(&ADU1_TCP[..i]);
+
+            if i < ADU1_ADU_LENGTH {
+                assert_eq!(result, Err(NotEnoughData));
+            } else {
+                assert_eq!(result, Ok(()));
+            }
+        }
+
+        for i in 0..=ADU2_TCP.len() {
+            let result = TcpModbus::adu_check(&ADU2_TCP[..i]);
+
+            if i < ADU2_ADU_LENGTH {
+                assert_eq!(result, Err(NotEnoughData));
+            } else {
+                assert_eq!(result, Ok(()));
+            }
+        }
+    }
+
+    #[test]
+    fn pdu_body() {
+        for i in 0..=ADU1_TCP.len() {
+            let result = TcpModbus::pdu_body(&ADU1_TCP[..i]);
+
+            if i < ADU1_ADU_LENGTH {
+                assert_eq!(result, Err(NotEnoughData));
+            } else {
+                assert_eq!(result, Ok(ADU1_PDU()));
+            }
+        }
+
+        for i in 0..=ADU2_TCP.len() {
+            let result = TcpModbus::pdu_body(&ADU2_TCP[..i]);
+
+            if i < ADU2_ADU_LENGTH {
+                assert_eq!(result, Err(NotEnoughData));
+            } else {
+                assert_eq!(result, Ok(ADU2_PDU()));
+            }
+        }
     }
 }
