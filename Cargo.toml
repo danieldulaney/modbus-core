@@ -5,3 +5,7 @@ authors = ["Daniel Dulaney <dan@dulaney.xyz>"]
 edition = "2018"
 
 [dependencies]
+
+[dev-dependencies.cargo-husky]
+version = "1"
+features = ["precommit-hook", "run-cargo-fmt"]
