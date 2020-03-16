@@ -91,6 +91,8 @@ pub struct TcpModbusHeader {
 }
 
 impl TcpModbus {
+    const ADU_MIN_LENGTH: usize = 8;
+
     fn protocol_id(data: &[u8]) -> Option<u16> {
         Some(u16::from_be_bytes([*data.get(2)?, *data.get(3)?]))
     }
@@ -120,8 +122,8 @@ impl ModbusProtocol for TcpModbus {
         // excluded from that field
         let adu_length = Self::length(data).ok_or(NotEnoughData)? as usize + EXCLUDED_LENGTH;
 
-        // Check if the length is not too long
-        if adu_length <= Self::ADU_MAX_LENGTH {
+        // Check if the length is not too long or too short
+        if Self::ADU_MIN_LENGTH <= adu_length && adu_length <= Self::ADU_MAX_LENGTH {
             Ok(adu_length)
         } else {
             Err(BadLength)
@@ -279,14 +281,22 @@ mod test {
 
     #[test]
     fn tcp_adu_bad_length() {
-        let one_shorter: &[u8] = &[0, 0, 0, 0, 0, 253]; // ADU length 259
-        let max_len: &[u8] = &[0, 0, 0, 0, 0, 254]; // ADU length 260
-        let too_long: &[u8] = &[0, 0, 0, 0, 0, 255]; // ADU length 261
-        let one_more: &[u8] = &[0, 0, 0, 0, 1, 0]; // ADU length 262
+        let adu_len_6: &[u8] = &[0, 0, 0, 0, 0, 0]; // ADU length 6
+        let adu_len_7: &[u8] = &[0, 0, 0, 0, 0, 1]; // ADU length 7
+        let adu_len_8: &[u8] = &[0, 0, 0, 0, 0, 2]; // ADU length 8
+        let adu_len_9: &[u8] = &[0, 0, 0, 0, 0, 3]; // ADU length 9
+        let adu_len_259: &[u8] = &[0, 0, 0, 0, 0, 253]; // ADU length 25
+        let adu_len_260: &[u8] = &[0, 0, 0, 0, 0, 254]; // ADU length 260
+        let adu_len_261: &[u8] = &[0, 0, 0, 0, 0, 255]; // ADU length 261
+        let adu_len_262: &[u8] = &[0, 0, 0, 0, 1, 0]; // ADU length 262
 
-        assert_eq!(TcpModbus::adu_length(one_shorter), Ok(259));
-        assert_eq!(TcpModbus::adu_length(max_len), Ok(260));
-        assert_eq!(TcpModbus::adu_length(too_long), Err(BadLength));
-        assert_eq!(TcpModbus::adu_length(one_more), Err(BadLength));
+        assert_eq!(TcpModbus::adu_length(adu_len_6), Err(BadLength));
+        assert_eq!(TcpModbus::adu_length(adu_len_7), Err(BadLength));
+        assert_eq!(TcpModbus::adu_length(adu_len_8), Ok(8));
+        assert_eq!(TcpModbus::adu_length(adu_len_9), Ok(9));
+        assert_eq!(TcpModbus::adu_length(adu_len_259), Ok(259));
+        assert_eq!(TcpModbus::adu_length(adu_len_260), Ok(260));
+        assert_eq!(TcpModbus::adu_length(adu_len_261), Err(BadLength));
+        assert_eq!(TcpModbus::adu_length(adu_len_262), Err(BadLength));
     }
 }
