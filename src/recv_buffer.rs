@@ -70,10 +70,11 @@ impl<P: ModbusProtocol> RecvBuffer<P> {
         use crate::ModbusError::NotEnoughData;
 
         if self.contains_complete {
-            self.clear_buffer()
+            self.clear_buffer();
+            self.contains_complete = false;
         }
 
-        let original_buffer_size = self.size_used;
+        let original_buffer_size = self.used();
         let length_to_add = core::cmp::min(self.space_left(), data.len());
 
         self.add_data(&data[..length_to_add]);
@@ -94,7 +95,7 @@ impl<P: ModbusProtocol> RecvBuffer<P> {
         };
 
         // We got something in between enough to determine the length and a full ADU
-        if self.size_used < adu_length {
+        if self.used() < adu_length {
             return Err(NotEnoughData);
         }
 
@@ -128,7 +129,7 @@ impl<P: ModbusProtocol> RecvBuffer<P> {
     ///
     /// Panics if `data` is longer than the available length
     fn add_data(&mut self, data: &[u8]) {
-        self.raw_buffer[self.size_used..].copy_from_slice(data);
+        self.raw_buffer[self.size_used..self.size_used + data.len()].copy_from_slice(data);
         self.size_used += data.len();
     }
 
@@ -146,8 +147,31 @@ impl<P: ModbusProtocol> RecvBuffer<P> {
     fn buffer(&self) -> &[u8] {
         &self.raw_buffer[..self.size_used]
     }
+
+    /// Determine how much of the buffer is currently in use
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use modbus_minimal::recv_buffer::*;
+    /// use modbus_minimal::protocols::*;
+    /// use modbus_minimal::ModbusError::*;
+    ///
+    /// let mut buf: RecvBuffer<TcpModbus> = RecvBuffer::new();
+    ///
+    /// // The buffer starts off empty
+    /// assert_eq!(buf.used(), 0);
+    ///
+    /// // 3 bytes isn't enough to make a full TCP MODBUS packet, so it gets buffered
+    /// assert_eq!(buf.process(&[1, 2, 3]).unwrap_err(), NotEnoughData);
+    /// assert_eq!(buf.used(), 3);
+    /// ```
+    pub fn used(&self) -> usize {
+        self.size_used
+    }
 }
 
+#[derive(PartialEq)]
 /// A representation of a single MODBUS ADU
 ///
 /// Consists of a protocol-dependent header, as well as a protocol data unit that is the same
@@ -155,4 +179,187 @@ impl<P: ModbusProtocol> RecvBuffer<P> {
 pub struct Packet<'p, P: ModbusProtocol> {
     pub pdu: &'p [u8],
     pub header: P::Header,
+}
+
+impl<'p, P: ModbusProtocol> core::fmt::Debug for Packet<'p, P> {
+    fn fmt(&self, f: &mut core::fmt::Formatter) -> core::fmt::Result {
+        f.debug_struct("Packet")
+            .field("header", &self.header)
+            .field("pdu", &format_args!("{} bytes", self.pdu.len()))
+            .finish()
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use super::*;
+    use crate::protocols::*;
+    use crate::test_data::*;
+    use crate::ModbusError::NotEnoughData;
+
+    const FOUR_ADUS_LEN: usize = 2 * (ADU1_TCP.len() + ADU2_TCP.len());
+
+    /// A utility function that fills the given buffer (at least FOUR_ADUS_LEN long) with four TCP
+    /// ADUs.
+    fn four_tcp_adus(buffer: &mut [u8]) {
+        let mut current = 0;
+
+        for slice in [ADU1_TCP, ADU2_TCP, ADU2_TCP, ADU1_TCP].iter() {
+            let next = current + slice.len();
+
+            &mut buffer[current..next].copy_from_slice(slice);
+
+            current = next;
+        }
+    }
+
+    #[test]
+    fn tcp_exactly_one_adu() {
+        let mut buf = RecvBuffer::<TcpModbus>::new();
+
+        let (packet, slice) = buf.process(ADU1_TCP).unwrap();
+
+        assert!(slice.is_empty());
+        assert_eq!(packet.header, ADU1_HEADER);
+        assert_eq!(packet.pdu, ADU1_PDU());
+
+        let (packet, slice) = buf.process(ADU2_TCP).unwrap();
+
+        assert!(slice.is_empty());
+        assert_eq!(packet.header, ADU2_HEADER);
+        assert_eq!(packet.pdu, ADU2_PDU());
+    }
+
+    /// Put 4 ADUs in one buffer, then run it through 10 bytes at a time.
+    ///
+    /// They will mostly fail with not enough bytes, but a few known chunks will succeed.
+    #[test]
+    fn tcp_four_adus_chunked() {
+        let chunk_size = 10;
+
+        let mut input: [u8; FOUR_ADUS_LEN] = [0; FOUR_ADUS_LEN];
+        four_tcp_adus(&mut input);
+        let input = input;
+
+        let mut buf = RecvBuffer::<TcpModbus>::new();
+
+        for (index, chunk) in input.chunks(chunk_size).enumerate() {
+            let result = buf.process(chunk);
+
+            if index == 20 {
+                // Finished first ADU (ADU1_TCP)
+                let (packet, slice) = result.unwrap();
+
+                assert_eq!(packet.pdu, ADU1_PDU());
+                assert_eq!(packet.header, ADU1_HEADER);
+
+                // First byte of next packet
+                assert_eq!(slice, &ADU2_TCP[..1]);
+                assert_eq!(buf.process(slice).unwrap_err(), NotEnoughData);
+            } else if index == 22 {
+                // Finished second ADU (ADU2_TCP)
+                let (packet, slice) = result.unwrap();
+
+                assert_eq!(packet.pdu, ADU2_PDU());
+                assert_eq!(packet.header, ADU2_HEADER);
+
+                // First 9 bytes of next packet
+                assert_eq!(slice, &ADU2_TCP[..9]);
+                assert_eq!(buf.process(slice).unwrap_err(), NotEnoughData);
+            } else if index == 23 {
+                // Finished third ADU (ADU2_TCP)
+                let (packet, slice) = result.unwrap();
+
+                assert_eq!(packet.pdu, ADU2_PDU());
+                assert_eq!(packet.header, ADU2_HEADER);
+
+                // First 7 bytes of next packet
+                assert_eq!(slice, &ADU1_TCP[..7]);
+                assert_eq!(buf.process(slice).unwrap_err(), NotEnoughData);
+            } else if index == 44 {
+                // Finished fourth ADU (ADU1_TCP)
+                let (packet, slice) = result.unwrap();
+
+                assert_eq!(packet.pdu, ADU1_PDU());
+                assert_eq!(packet.header, ADU1_HEADER);
+
+                // No data remaining
+                assert_eq!(slice, &[]);
+            } else {
+                assert_eq!(result.unwrap_err(), NotEnoughData);
+            }
+        }
+    }
+
+    #[test]
+    fn tcp_four_adus_straight_through() {
+        let mut input: [u8; FOUR_ADUS_LEN] = [0; FOUR_ADUS_LEN];
+        four_tcp_adus(&mut input);
+        let input = input;
+
+        let mut buf = RecvBuffer::<TcpModbus>::new();
+
+        let (packet, slice) = buf.process(&input).unwrap();
+        assert_eq!(slice, &input[ADU1_TCP.len()..]);
+        assert_eq!(packet.pdu, ADU1_PDU());
+        assert_eq!(packet.header, ADU1_HEADER);
+
+        let (packet, slice) = buf.process(slice).unwrap();
+        assert_eq!(slice, &input[ADU1_TCP.len() + ADU2_TCP.len()..]);
+        assert_eq!(packet.pdu, ADU2_PDU());
+        assert_eq!(packet.header, ADU2_HEADER);
+
+        let (packet, slice) = buf.process(slice).unwrap();
+        assert_eq!(slice, &input[ADU1_TCP.len() + 2 * ADU2_TCP.len()..]);
+        assert_eq!(packet.pdu, ADU2_PDU());
+        assert_eq!(packet.header, ADU2_HEADER);
+
+        let (packet, slice) = buf.process(slice).unwrap();
+        assert_eq!(slice, &[]);
+        assert_eq!(packet.pdu, ADU1_PDU());
+        assert_eq!(packet.header, ADU1_HEADER);
+    }
+
+    #[test]
+    fn tcp_four_adus_byte_by_byte() {
+        let mut input: [u8; FOUR_ADUS_LEN] = [0; FOUR_ADUS_LEN];
+        four_tcp_adus(&mut input);
+        let input = input;
+
+        let mut buf = RecvBuffer::<TcpModbus>::new();
+
+        for (index, byte) in input.chunks(1).enumerate() {
+            let result = buf.process(byte);
+
+            dbg!(index);
+
+            if (index == 208) {
+                let (packet, slice) = result.unwrap();
+
+                assert_eq!(slice, &[]);
+                assert_eq!(packet.pdu, ADU1_PDU());
+                assert_eq!(packet.header, ADU1_HEADER);
+            } else if (index == 220) {
+                let (packet, slice) = result.unwrap();
+
+                assert_eq!(slice, &[]);
+                assert_eq!(packet.pdu, ADU2_PDU());
+                assert_eq!(packet.header, ADU2_HEADER);
+            } else if (index == 232) {
+                let (packet, slice) = result.unwrap();
+
+                assert_eq!(slice, &[]);
+                assert_eq!(packet.pdu, ADU2_PDU());
+                assert_eq!(packet.header, ADU2_HEADER);
+            } else if (index == 441) {
+                let (packet, slice) = result.unwrap();
+
+                assert_eq!(slice, &[]);
+                assert_eq!(packet.pdu, ADU1_PDU());
+                assert_eq!(packet.header, ADU1_HEADER);
+            } else {
+                assert_eq!(result.unwrap_err(), NotEnoughData);
+            }
+        }
+    }
 }
