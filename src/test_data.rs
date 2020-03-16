@@ -2,6 +2,7 @@
 #![allow(dead_code)]
 #![allow(non_snake_case)]
 
+use crate::protocols::TcpModbusHeader;
 use crate::Direction;
 
 // Frame 58925 from modbus.pcap
@@ -23,11 +24,13 @@ pub const ADU1_TCP: &[u8] = &[
 ];
 
 pub const ADU1_DIRECTION: Direction = Direction::Response;
-pub const ADU1_TRANS_ID: u16 = 19404;
-pub const ADU1_PROTO_ID: u16 = 0;
-pub const ADU1_LENGTH: u16 = 203;
+pub const ADU1_HEADER: TcpModbusHeader = TcpModbusHeader {
+    transaction_id: 19404,
+    protocol_id: 0,
+    length: 203,
+    unit_id: 255,
+};
 pub const ADU1_ADU_LENGTH: usize = 209;
-pub const ADU1_UNIT_ID: u8 = 255;
 pub const ADU1_FUNC_CODE: u8 = 3;
 
 pub fn ADU1_PDU() -> &'static [u8] {
@@ -40,11 +43,13 @@ pub const ADU2_TCP: &[u8] = &[
 ];
 
 pub const ADU2_DIRECTION: Direction = Direction::Query;
-pub const ADU2_TRANS_ID: u16 = 19806;
-pub const ADU2_PROTO_ID: u16 = 0;
-pub const ADU2_LENGTH: u16 = 6;
+pub const ADU2_HEADER: TcpModbusHeader = TcpModbusHeader {
+    transaction_id: 19806,
+    protocol_id: 0,
+    length: 6,
+    unit_id: 255,
+};
 pub const ADU2_ADU_LENGTH: usize = 12;
-pub const ADU2_UNIT_ID: u8 = 255;
 pub const ADU2_FUNC_CODE: u8 = 4;
 
 pub fn ADU2_PDU() -> &'static [u8] {
