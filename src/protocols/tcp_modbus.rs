@@ -79,6 +79,8 @@ const MBAP_LENGTH: usize = 7;
 // the length field
 const EXCLUDED_LENGTH: usize = 6;
 
+const MAX_PDU_LENGTH: usize = 253;
+
 /// TCP MODBUS header data
 #[derive(Debug, Clone, PartialEq)]
 pub struct TcpModbusHeader {
@@ -112,9 +114,17 @@ impl ModbusProtocol for TcpModbus {
     type Header = TcpModbusHeader;
 
     fn adu_length(data: &[u8]) -> Result<usize, ModbusError> {
-        match Self::length(data) {
-            None => Err(ModbusError::NotEnoughData),
-            Some(v) => Ok(v as usize + EXCLUDED_LENGTH),
+        use ModbusError::{NotEnoughData, BadLength};
+
+        // The ADU length is the value of the length field + the number of bytes
+        // excluded from that field
+        let adu_length = Self::length(data).ok_or(NotEnoughData)? as usize + EXCLUDED_LENGTH;
+
+        // Check if the length is not too long
+        if adu_length <= Self::ADU_MAX_LENGTH {
+            Ok(adu_length)
+        } else {
+            Err(BadLength)
         }
     }
 
@@ -265,5 +275,18 @@ mod test {
                 assert_eq!(result, Ok(ADU2_PDU()));
             }
         }
+    }
+
+    #[test]
+    fn tcp_adu_bad_length() {
+        let one_shorter: &[u8] = &[0, 0, 0, 0, 0, 253]; // ADU length 259
+        let max_len: &[u8] = &[0, 0, 0, 0, 0, 254]; // ADU length 260
+        let too_long: &[u8] = &[0, 0, 0, 0, 0, 255]; // ADU length 261
+        let one_more: &[u8] = &[0, 0, 0, 0, 1, 0]; // ADU length 262
+
+        assert_eq!(TcpModbus::adu_length(one_shorter), Ok(259));
+        assert_eq!(TcpModbus::adu_length(max_len), Ok(260));
+        assert_eq!(TcpModbus::adu_length(too_long), Err(BadLength));
+        assert_eq!(TcpModbus::adu_length(one_more), Err(BadLength));
     }
 }

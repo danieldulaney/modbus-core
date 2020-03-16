@@ -1,5 +1,6 @@
 // This is just some data for testing, so it's OK if it's unused
 #![allow(dead_code)]
+#![allow(non_snake_case)]
 
 use crate::Direction;
 
