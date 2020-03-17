@@ -1,5 +1,5 @@
 [package]
-name = "modbus-minimal"
+name = "modbus-core"
 version = "0.1.0"
 authors = ["Daniel Dulaney <dan@dulaney.xyz>"]
 edition = "2018"

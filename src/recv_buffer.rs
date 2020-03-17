@@ -153,9 +153,9 @@ impl<P: ModbusProtocol> RecvBuffer<P> {
     /// # Examples
     ///
     /// ```
-    /// use modbus_minimal::recv_buffer::*;
-    /// use modbus_minimal::protocols::*;
-    /// use modbus_minimal::ModbusError::*;
+    /// use modbus_core::recv_buffer::*;
+    /// use modbus_core::protocols::*;
+    /// use modbus_core::ModbusError::*;
     ///
     /// let mut buf: RecvBuffer<TcpModbus> = RecvBuffer::new();
     ///
