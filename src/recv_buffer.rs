@@ -333,25 +333,25 @@ mod test {
 
             dbg!(index);
 
-            if (index == 208) {
+            if index == 208 {
                 let (packet, slice) = result.unwrap();
 
                 assert_eq!(slice, &[]);
                 assert_eq!(packet.pdu, ADU1_PDU());
                 assert_eq!(packet.header, ADU1_HEADER);
-            } else if (index == 220) {
+            } else if index == 220 {
                 let (packet, slice) = result.unwrap();
 
                 assert_eq!(slice, &[]);
                 assert_eq!(packet.pdu, ADU2_PDU());
                 assert_eq!(packet.header, ADU2_HEADER);
-            } else if (index == 232) {
+            } else if index == 232 {
                 let (packet, slice) = result.unwrap();
 
                 assert_eq!(slice, &[]);
                 assert_eq!(packet.pdu, ADU2_PDU());
                 assert_eq!(packet.header, ADU2_HEADER);
-            } else if (index == 441) {
+            } else if index == 441 {
                 let (packet, slice) = result.unwrap();
 
                 assert_eq!(slice, &[]);

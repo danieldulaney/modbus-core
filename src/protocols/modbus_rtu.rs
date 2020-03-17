@@ -19,18 +19,30 @@ impl ModbusProtocol for ModbusRtu {
     type Header = ModbusRtuHeader;
 
     fn adu_length(data: &[u8]) -> Result<usize, ModbusError> {
-        todo!();
+        panic!(
+            "Not yet implemented: adu_length ({}-byte argument)",
+            data.len()
+        );
     }
 
     fn adu_header(data: &[u8]) -> Result<Self::Header, ModbusError> {
-        todo!();
+        panic!(
+            "Not yet implemented: adu_header ({}-byte argument)",
+            data.len()
+        );
     }
 
     fn adu_check(data: &[u8]) -> Result<(), ModbusError> {
-        todo!();
+        panic!(
+            "Not yet implemented: adu_check ({}-byte argument)",
+            data.len()
+        );
     }
 
     fn pdu_body(data: &[u8]) -> Result<&[u8], ModbusError> {
-        todo!();
+        panic!(
+            "Not yet implemented: pdu_body ({}-byte argument)",
+            data.len()
+        );
     }
 }
